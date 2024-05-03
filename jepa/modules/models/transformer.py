@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
+from torch_geometric.nn import knn
 from typing import Optional, Dict, Any
 from jepa.modules import BaseModule
 from jepa.utils import AttentionBlock, make_mlp
@@ -74,6 +75,47 @@ class Transformer(BaseModule):
         self.pooling_layers = nn.ModuleList(self.pooling_layers)
         self.embeddings = Parameter(data = torch.randn((1, 1, d_model)))
         
+    def sample_context(self, x: torch.Tensor, mask: torch.Tensor):
+        """
+        Context sampling process:
+        1. Pick a random index - this is the center point
+        2. Pick a random length - this is the length of the context
+        3. Run KNN on the center point
+        4. Return the context
+        """
+
+        center = torch.randint(0, x.shape[1], (1,))
+        length = torch.randint(1, x.shape[1] // 5, (1,))
+        
+        context = knn(x, x[center], length)
+        context_mask = mask[context]
+
+        return context, context_mask
+    
+    def sample_target(self, x: torch.Tensor, mask: torch.Tensor, context_mask: torch.Tensor):
+        """
+        Target sampling process:
+        1. Overlay this batch with another batch
+        2. Pick a random index and random length
+        3. Run KNN on the index and length
+        4. Return the target and the event label
+        """
+
+        random_event = self.trainloader.dataset[torch.randint(0, len(self.trainloader.dataset), (1,))]
+
+        x = torch.cat([x, random_event[0]], dim=1)
+        mask = torch.cat([mask, random_event[1]], dim=1)
+        label = torch.cat([torch.ones(x.shape[1] - random_event[0].shape[1]), torch.zeros(random_event[0].shape[1])])
+
+        random_index = torch.randint(0, x.shape[1], (1,))
+        random_length = torch.randint(1, x.shape[1] // 5, (1,))
+
+        target = knn(x, x[random_index], random_length)
+        target_mask = mask[target]
+
+        return target, target_mask, label
+
+
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
         x = x.permute(1, 0, 2)
         x = self.ff_input(x)
