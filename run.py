@@ -7,7 +7,7 @@ import torch
 import yaml
 
 # Local import
-from gtrack.modules import Transformer
+from jepa.modules import Transformer
 
 def parse_arguments():
     parser = ArgumentParser()

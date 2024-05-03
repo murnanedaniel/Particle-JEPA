@@ -4,7 +4,7 @@ import torch
 from torch.utils.data import DataLoader
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score
-from gtrack.utils import TracksDataset, collate_fn
+from jepa.utils import TracksDataset, collate_fn
 from typing import Dict, Any, Optional
 from abc import ABC
 from abc import abstractmethod
@@ -87,24 +87,37 @@ class BaseModule(ABC, LightningModule):
         raise NotImplementedError("implement anomaly detection method!")
     
     def training_step(self, batch, batch_idx):
-        x, mask, y, dfs = batch
-        predictions = self.predict(x, mask)
-        loss = F.binary_cross_entropy_with_logits(predictions, y)
+        """
+        Particle-JEPA training procedure:
+        1. Sample the batch for a context set of points
+        2. Sample the batch for a target set of points
+        3. Encode the context set of points with the ContextEncoder
+        4. Encode the target set of points with the TargetEncoder
+        5. Provide the context encoding and the TaskCondition to the Predictor
+        6. Apply loss function to the prediction and the target encoding
+        """
+        context_x, context_mask = self.sample_context(batch)
+        target_x, target_mask = self.sample_target(batch, context_mask)
+        context_encoding = self.context_encoder(context_x, context_mask)
+        target_encoding = self.target_encoder(target_x, target_mask)
+        prediction = self.predictor(context_encoding, self.task_condition)
+        loss = self.loss(prediction, target_encoding)
         self.log("training_loss", loss, on_step=True)
-        self.log("num_particles", sum([len(df) for df in dfs]) / len(dfs), on_step=True)
         return loss
     
     def shared_evaluation(self, batch, batch_idx, log=False):
-        x, mask, y, _ = batch
-        predictions = self.predict(x, mask)
-        loss = F.binary_cross_entropy_with_logits(predictions, y)
-        scores = torch.sigmoid(predictions).cpu().numpy()
-        y = y.cpu().numpy()
-        roc_score = roc_auc_score(y, scores)
-        accuracy = (y == (scores >= 0.5)).sum() / len(y)
+        """
+        Particle-JEPA evaluation procedure is essentially the same
+        as the training procedure
+        """
+        context_x, context_mask = self.sample_context(batch)
+        target_x, target_mask = self.sample_target(batch, context_mask)
+        context_encoding = self.context_encoder(context_x, context_mask)
+        target_encoding = self.target_encoder(target_x, target_mask)
+        prediction = self.predictor(context_encoding, self.task_condition)
+        loss = self.loss(prediction, target_encoding)
         self.log("validation_loss", loss, on_epoch=True)
-        self.log("validation_accuracy", accuracy, on_epoch=True)
-        self.log("validation_auc", roc_score, on_epoch=True)
+        return loss
 
     def validation_step(self, batch, batch_idx):
         self.shared_evaluation(batch, batch_idx)

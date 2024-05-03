@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(
-    name='gtrack',
+    name='jepa',
     version='0.0.1',
-    packages=['gtrack'],
+    packages=['jepa'],
 )

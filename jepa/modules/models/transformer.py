@@ -2,8 +2,8 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 from typing import Optional, Dict, Any
-from gtrack.modules import BaseModule
-from gtrack.utils import AttentionBlock, make_mlp
+from jepa.modules import BaseModule
+from jepa.utils import AttentionBlock, make_mlp
 
 class Transformer(BaseModule):
     def __init__(

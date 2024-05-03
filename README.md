@@ -13,10 +13,10 @@
 
 To install:
 ```
-git clone https://github.com/ryanliu30/gtrack.git --recurse-submodules
-cd gtrack
-conda create -n gtrack python=3.10
-conda activate gtrack
+git clone https://github.com/murnanedaniel/Particle-JEPA.git --recurse-submodules
+cd Particle-JEPA
+conda create -n jepa python=3.10
+conda activate jepa
 pip install -r requirements.txt
 pip install -e .
 pip install -e ToyTrack
