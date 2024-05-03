@@ -86,6 +86,26 @@ class BaseModule(ABC, LightningModule):
     def predict(self, x, mask):
         raise NotImplementedError("implement anomaly detection method!")
     
+    @abstractmethod
+    def sample_context(self, batch):
+        raise NotImplementedError("implement sampling method!")
+    
+    @abstractmethod
+    def sample_target(self, batch, context_mask):
+        raise NotImplementedError("implement sampling method!")
+    
+    @abstractmethod
+    def loss(self, prediction, target):
+        raise NotImplementedError("implement loss function!")
+    
+    @abstractmethod
+    def context_encoder(self, x, mask):
+        raise NotImplementedError("implement context encoder!")
+    
+    @abstractmethod
+    def target_encoder(self, x, mask):
+        raise NotImplementedError("implement target encoder!")
+    
     def training_step(self, batch, batch_idx):
         """
         Particle-JEPA training procedure:
