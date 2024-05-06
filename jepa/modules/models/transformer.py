@@ -3,7 +3,8 @@ from torch import nn
 from torch.nn.parameter import Parameter
 from typing import Optional, Dict, Any
 from jepa.modules import BaseModule
-from jepa.utils import AttentionBlock, make_mlp
+
+from .transformer_utils import AttentionBlock, make_mlp
 
 class Transformer(BaseModule):
     def __init__(
@@ -20,9 +21,11 @@ class Transformer(BaseModule):
             lr: Optional[float] = 1e-3,
             patience: Optional[int] = 10,
             factor: Optional[float] = 1,
-            curriculum: Optional[int] = 0,
-            min_scale: Optional[float] = 0.,
+            curriculum: Optional[str] = "1",
+            t0: Optional[int] = 0,
             dataset_args: Optional[Dict[str, Any]] = {},
+            *args,
+            **kwargs,
         ):
         
         super().__init__(
@@ -32,7 +35,7 @@ class Transformer(BaseModule):
             patience=patience,
             factor=factor,
             curriculum=curriculum,
-            min_scale=min_scale,
+            t0=t0,
             dataset_args=dataset_args
         )
         

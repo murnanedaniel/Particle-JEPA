@@ -1,10 +1,10 @@
 # logging config
 project: set_tracking
-logdir: /global/cfs/cdirs/m3443/usr/ryanliu/set_tracking/transformer
+logdir: /global/cfs/cdirs/m3443/usr/ryanliu/set_tracking/transformer-single-gpu
 
 # trainer config
 accelerator: gpu
-devices: 4
+devices: 1
 nodes: 1
 workers: 32
 train_batches: 10000
@@ -12,7 +12,7 @@ val_batches: 1000
 max_epochs: 100
 batch_size: 16
 warmup: 1000
-lr: 0.002
+lr: 0.001
 patience: 100
 factor: 1
 t0: 50

@@ -32,7 +32,6 @@ class TracksDataset(IterableDataset):
         self.hard_proc_pt_dist = hard_proc_pt_dist
 
     def __iter__(self):
-        worker_info = torch.utils.data.get_worker_info()
         return _TrackIterable(
             self.hole_inefficiency,
             self.d0,
@@ -109,19 +108,21 @@ class _TrackIterable:
         self.minbias_pt_dist = minbias_pt_dist
         self.pileup_pt_dist = pileup_pt_dist
         self.hard_proc_pt_dist = hard_proc_pt_dist
+        self.y = np.random.rand() < 0.5
     
     def __next__(self):
         
-        y = (np.random.rand() < 0.5)
+        self.y = not self.y
         
-        if y:
+        if self.y:
             event = self.hard_proc_gen.generate_event()
         else:
             event = self.minbias_gen.generate_event()
+            
         x = torch.tensor([event.hits.x, event.hits.y], dtype=torch.float).T.contiguous()
         mask = torch.ones(x.shape[0], dtype=bool)
 
-        return x, mask, torch.tensor([y], dtype=torch.float), event.particles
+        return x, mask, torch.tensor([self.y], dtype=torch.float), event
     
 def collate_fn(ls):
     x, mask, y, events = zip(*ls)
