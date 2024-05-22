@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from torch.nn.parameter import Parameter
-from .transformer_utils import AttentionBlock, make_mlp
+from .network_utils import AttentionBlock, make_mlp
 
 class Transformer(nn.Module):
     def __init__(

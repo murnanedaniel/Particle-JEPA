@@ -26,7 +26,6 @@ class BaseModule(ABC, LightningModule):
         """
         Initialise the Lightning Module
         """
-        self.save_hyperparameters()
     
     def _get_dataloader(self, is_training = False):
         dataset_args = self.hparams["dataset_args"].copy()
@@ -85,56 +84,28 @@ class BaseModule(ABC, LightningModule):
     
     
     @abstractmethod
-    def predict(self, x, mask):
-        raise NotImplementedError("implement anomaly detection method!")
+    def embed(self, x, mask):
+        raise NotImplementedError("implement embed mothod!")
     
-    @abstractmethod
-    def sample_context(self, batch):
-        raise NotImplementedError("implement sampling method!")
-    
-    @abstractmethod
-    def sample_target(self, batch, context_mask):
-        raise NotImplementedError("implement sampling method!")
-    
-    @abstractmethod
-    def loss(self, prediction, target):
-        raise NotImplementedError("implement loss function!")
-    
-    @abstractmethod
-    def context_encoder(self, x, mask):
-        raise NotImplementedError("implement context encoder!")
-    
-    @abstractmethod
-    def target_encoder(self, x, mask):
-        raise NotImplementedError("implement target encoder!")
-    
+    @abstractmethod   
     def training_step(self, batch, batch_idx):
-        x, mask, y, events = batch
-        predictions = self.predict(x, mask)
-        loss = F.binary_cross_entropy_with_logits(predictions, y)
-        self.log("training_loss", loss, on_step=True)
-        self.log("num_particles", sum([len(event.particles) for event in events]) / len(events), on_step=True)
-        return loss
+        raise NotImplementedError("implement training mothod!")
     
+    @abstractmethod
     def shared_evaluation(self, batch, batch_idx, log=False):
-        x, mask, y, _ = batch
-        predictions = self.predict(x, mask)
-        loss = F.binary_cross_entropy_with_logits(predictions, y)
-        scores = torch.sigmoid(predictions).cpu().numpy()
-        y = y.cpu().numpy()
-        roc_score = roc_auc_score(y, scores)
-        accuracy = (y == (scores >= 0.5)).sum() / len(y)
-        
-        self.log("validation_accuracy", accuracy.item(), on_epoch=True, sync_dist=True)
-        self.log("validation_auc", roc_score, on_epoch=True, sync_dist=True)
-        self.log("validation_loss", loss.item(), on_epoch=True, sync_dist=True)
+        """
+        implement the evaluation of pre-training models using the 
+        embed method that all models should implement.
+        Could be some regression task or even just some visualization
+        of how different events are seperated
+        """
+        raise NotImplementedError("implement target encoder!")
 
     def validation_step(self, batch, batch_idx):
         self.shared_evaluation(batch, batch_idx)
 
     def test_step(self, batch, batch_idx):
         self.shared_evaluation(batch, batch_idx)
-        
 
     def optimizer_step(
         self,
