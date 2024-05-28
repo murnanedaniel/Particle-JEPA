@@ -3,7 +3,7 @@ from typing import Optional, Dict, Any
 from jepa.modules.base import BaseModule
 from jepa.modules.networks.transformer import Transformer
 
-class ContrastiveLearningModule(BaseModule):
+class JEPAModule(BaseModule):
     def __init__(
             self, 
             model: str,
