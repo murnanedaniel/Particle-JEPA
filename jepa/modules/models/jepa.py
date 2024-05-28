@@ -78,7 +78,7 @@ class ContrastiveLearningModule(BaseModule):
         philim = philim[:, :, None, :]
         phiorder = philim[0] > philim[1]
 
-        context_mask = (r < rlim[1]) & (r > rlim[2]) & (
+        context_mask = (r < rlim[1]) & (r > rlim[0]) & (
             (phiorder & (phi > philim[0]) & (phi < philim[1]))
             | ((~phiorder) & (phi < philim[0]) & (phi > philim[1]))
         )
