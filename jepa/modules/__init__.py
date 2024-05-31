@@ -1,7 +1,5 @@
 from .base import BaseModule
-from .models.transformer import Transformer
+from .models.jepa import JEPA
 __all__ = [
-    "BaseModule",
-    "Transformer",
-    "GeometricTransformer"
+    "JEPA",
 ]

@@ -2,8 +2,6 @@
 from lightning.pytorch.core import LightningModule
 import torch
 from torch.utils.data import DataLoader
-import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score
 from jepa.utils import TracksDataset, collate_fn
 from typing import Dict, Any, Optional
 from abc import ABC
@@ -17,9 +15,6 @@ class BaseModule(ABC, LightningModule):
             lr: Optional[float] = 1e-3,
             patience: Optional[int] = 10,
             factor: Optional[float] = 1,
-            curriculum: Optional[str] = "1",
-            t0: Optional[int] = 0,
-            min_scale: Optional[float] = 0.,
             dataset_args: Optional[Dict[str, Any]] = {},
         ):
         super().__init__()
@@ -27,31 +22,17 @@ class BaseModule(ABC, LightningModule):
         Initialise the Lightning Module
         """
     
-    def _get_dataloader(self, is_training = False):
-        dataset_args = self.hparams["dataset_args"].copy()
-        if is_training and (self.trainer.current_epoch < self.hparams.get("t0", 0)):
-            t = self.trainer.current_epoch / self.hparams.get("t0", 0)
-            ratio = eval(self.hparams.get("curriculum", "1"))
-            for name in ["minbias_lambda", "pileup_lambda", "hard_proc_lambda"]:
-                if name in dataset_args:
-                    dataset_args[name] *= ratio
-        else:
-            ratio = 1
-            
-        dataset = TracksDataset(
-            **dataset_args
-        )
-        
+    def _get_dataloader(self):        
         return DataLoader(
-            dataset,
-            batch_size=round(self.hparams["batch_size"] / max(ratio, 0.25)),
+            TracksDataset(**self.hparams["dataset_args"]),
+            batch_size=self.hparams["batch_size"],
             collate_fn=collate_fn,
             num_workers=self.hparams["workers"],
             persistent_workers=True
         )
     
     def train_dataloader(self):
-        return self._get_dataloader(is_training = True)
+        return self._get_dataloader()
 
     def val_dataloader(self):
         return self._get_dataloader()
@@ -91,7 +72,6 @@ class BaseModule(ABC, LightningModule):
     def training_step(self, batch, batch_idx):
         raise NotImplementedError("implement training mothod!")
     
-    @abstractmethod
     def shared_evaluation(self, batch, batch_idx, log=False):
         """
         implement the evaluation of pre-training models using the 
