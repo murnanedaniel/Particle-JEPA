@@ -130,7 +130,7 @@ class JEPA(BaseModule):
 
         philim = 2 * torch.rand((2, batch_size)) * torch.pi - torch.pi
         philim = philim[:, :, None]
-        phiorder = philim[0] > philim[1]
+        phiorder = philim[0] < philim[1]
 
         target_mask = (r < rlim[1]) & (r > rlim[0]) & (
             (phiorder & (phi > philim[0]) & (phi < philim[1]))
