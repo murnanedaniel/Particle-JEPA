@@ -1,10 +1,10 @@
 # logging config
-project: set_tracking
-logdir: /global/cfs/cdirs/m3443/usr/ryanliu/set_tracking/transformer
+project: PJEPA
+logdir: /global/cfs/cdirs/m3443/usr/ryanliu/JEPA
 
 # trainer config
 accelerator: gpu
-devices: 4
+devices: 1
 nodes: 1
 workers: 32
 train_batches: 10000
@@ -15,16 +15,17 @@ warmup: 1000
 lr: 0.002
 patience: 100
 factor: 1
-t0: 50
-curriculum: np.clip(1.2 * t - 0.2, a_min=0.1, a_max=1)
 
 # model config
-model: Transformer
+model: JEPA
 d_model: 128
 d_ff: 256
 heads: 8
-n_layers: 12
-n_pool_layer: 2
+n_layers: 6
+n_agg_layers: 2
+n_predictor_layers: 4
+num_gaussians: 50
+ema_decay: 0.999
 dropout: 0.
 
 # dataset config

@@ -5,7 +5,7 @@ from typing import Optional, Dict, Any
 from jepa.modules.base import BaseModule
 from jepa.modules.networks.transformer import Transformer
 
-class ParticleJEPAModule(BaseModule):
+class ContrastiveLearningModule(BaseModule):
     def __init__(
             self, 
             model: str,
@@ -46,14 +46,7 @@ class ParticleJEPAModule(BaseModule):
             dropout=dropout
         )
 
-        self.predictor = Transformer(
-            d_model=d_model,
-            d_ff=d_ff,
-            heads=heads,
-            n_layers=n_layers,
-            n_pool_layer=n_pool_layer,
-            dropout=dropout
-        )
+        self.save_hyperparameters()
         
     def sample_context(self, x: torch.Tensor, mask: torch.Tensor):
         center = torch.randint(0, x.shape[1], (1,))
@@ -72,18 +65,9 @@ class ParticleJEPAModule(BaseModule):
         target = knn(x, x[random_index], random_length)
         target_mask = mask[target]
         return target, target_mask, label
-
-    def predict(self, x, mask):
-        return self.encoder(x, mask)
     
-    def context_encoder(self, x, mask):
-        # Implement context encoder logic
-        pass
-    
-    def target_encoder(self, x, mask):
-        # Implement target encoder logic
-        pass
-    
-    def loss(self, prediction, target):
-        # Implement loss function
-        pass
+    def embed(self, x, mask):
+        raise NotImplementedError("implement embed mothod!")
+      
+    def training_step(self, batch, batch_idx):
+        raise NotImplementedError("implement training mothod!")

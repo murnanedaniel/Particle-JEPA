@@ -7,7 +7,7 @@ from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
 
 # local imports
-from jepa.modules import Transformer
+from jepa.modules import JEPA
 
 
 def get_default_root_dir(logdir):
@@ -118,8 +118,8 @@ def get_model(
     default_root_dir = get_default_root_dir(config["logdir"])
 
     # get the module
-    if config["model"] == "Transformer":
-        module = Transformer
+    if config["model"] == "JEPA":
+        module = JEPA
     else:
         raise NotImplementedError("model specified is not implemented")
 

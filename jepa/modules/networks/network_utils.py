@@ -10,7 +10,7 @@ def make_mlp(
     d_output: int,
     n_layer: Optional[int] = 2,
     dropout: Optional[float] = 0.,
-    activation: Optional[nn.Module] = nn.LeakyReLU(),
+    activation: Optional[nn.Module] = nn.SiLU(),
     output_activation: Optional[nn.Module] = None,
 ) -> nn.Module:
     """
@@ -90,7 +90,7 @@ class AttentionBlock(nn.Module):
         d_source: Optional[int] = 512,
         self_attn: Optional[bool] = True,
         cross_attn: Optional[bool] = False,
-        activation: Optional[nn.Module] = nn.LeakyReLU()
+        activation: Optional[nn.Module] = nn.SiLU()
     ):
         """
         Initialize an `AttentionBlock` instance

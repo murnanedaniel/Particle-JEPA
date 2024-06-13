@@ -17,7 +17,8 @@ class TracksDataset(IterableDataset):
             minbias_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [1, 5],
             pileup_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [1, 5],
             hard_proc_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [100, 5, 'normal'],
-            warmup_t0: Optional[float] = 0
+            min_radius: Optional[float] = 0.5,
+            max_radius: Optional[float] = 3.,
         ):
         super().__init__()
 
@@ -30,6 +31,8 @@ class TracksDataset(IterableDataset):
         self.minbias_pt_dist = minbias_pt_dist
         self.pileup_pt_dist = pileup_pt_dist
         self.hard_proc_pt_dist = hard_proc_pt_dist
+        self.min_radius = min_radius
+        self.max_radius = max_radius
 
     def __iter__(self):
         return _TrackIterable(
@@ -42,6 +45,8 @@ class TracksDataset(IterableDataset):
             self.minbias_pt_dist,
             self.pileup_pt_dist,
             self.hard_proc_pt_dist,
+            self.min_radius,
+            self.max_radius
         )
     
 class _TrackIterable:
@@ -56,7 +61,8 @@ class _TrackIterable:
             minbias_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [1, 5],
             pileup_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [1, 5],
             hard_proc_pt_dist: Optional[Union[float, List[float], List[Union[float, str]]]] = [100, 5, 'normal'],
-            warmup_t0: Optional[float] = 0
+            min_radius: Optional[float] = 0.5,
+            max_radius: Optional[float] = 3.,
         ):
         
         detector = Detector(
@@ -64,8 +70,8 @@ class _TrackIterable:
             hole_inefficiency=hole_inefficiency
         ).add_from_template(
             'barrel', 
-            min_radius=0.5, 
-            max_radius=3, 
+            min_radius=min_radius, 
+            max_radius=max_radius, 
             number_of_layers=10,
         )
         
