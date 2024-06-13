@@ -3,7 +3,7 @@ from torch import nn
 from torch_geometric.nn import knn
 from typing import Optional, Dict, Any
 from jepa.modules.base import BaseModule
-from jepa.modules.models.transformer import Transformer
+from jepa.modules.networks.transformer import Transformer
 
 class ParticleJEPAModule(BaseModule):
     def __init__(
@@ -45,6 +45,15 @@ class ParticleJEPAModule(BaseModule):
             n_pool_layer=n_pool_layer,
             dropout=dropout
         )
+
+        self.predictor = Transformer(
+            d_model=d_model,
+            d_ff=d_ff,
+            heads=heads,
+            n_layers=n_layers,
+            n_pool_layer=n_pool_layer,
+            dropout=dropout
+        )
         
     def sample_context(self, x: torch.Tensor, mask: torch.Tensor):
         center = torch.randint(0, x.shape[1], (1,))
@@ -52,7 +61,7 @@ class ParticleJEPAModule(BaseModule):
         context = knn(x, x[center], length)
         context_mask = mask[context]
         return context, context_mask
-    
+     
     def sample_target(self, x: torch.Tensor, mask: torch.Tensor, context_mask: torch.Tensor):
         random_event = self.train_dataloader().dataset[torch.randint(0, len(self.train_dataloader().dataset), (1,))]
         x = torch.cat([x, random_event[0]], dim=1)

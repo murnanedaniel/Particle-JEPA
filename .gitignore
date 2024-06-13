@@ -134,3 +134,9 @@ logs
 */debug.ipynb
 # ipynb artifacts
 .ipynb_checkpoints
+
+# Development directories & files
+**_dev
+*_dev
+**_test
+*_test
