@@ -26,6 +26,8 @@ class Aggregator(nn.Module):
             ) for _ in range(n_layers)
         ]
 
+        self.encoder_layers = nn.ModuleList(self.encoder_layers)
+
         self.embeddings = Parameter(torch.randn((1, 1, d_model)))
         
     def forward(self, x: torch.Tensor, mask: torch.Tensor):

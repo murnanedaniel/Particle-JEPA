@@ -5,7 +5,8 @@ from typing import Optional, Dict, Any
 from jepa.modules.base import BaseModule
 from jepa.modules.networks.transformer import Transformer
 from jepa.modules.networks.aggregator import Aggregator
-from jepa.modules.networks.predictor import Predictor
+from jepa.modules.networks.predictor import SplitTrackPredictor
+from jepa.utils import random_rphi_sample, track_split_sample
 
 class JEPAEncoder(nn.Module):
     def __init__(
@@ -100,14 +101,11 @@ class JEPA(BaseModule):
         self.max_radius = dataset_args.get("max_radius", 3.0)
         self.min_radius = dataset_args.get("min_radius", 0.5)
 
-        self.predictor = Predictor(
-            num_gaussians=num_gaussians,
-            rmin=self.min_radius,
-            rmax=self.max_radius,
+        self.predictor = SplitTrackPredictor(
             d_model=d_model,
             d_ff=d_ff,
             n_layer=n_predictor_layers,
-            dropout=dropout
+            dropout=dropout,
         )
 
         self.ema_decay = ema_decay
@@ -121,25 +119,15 @@ class JEPA(BaseModule):
         
     def sample_context(self, x: torch.Tensor, mask: torch.Tensor):
 
-        batch_size = x.size(0)
         r, phi = torch.linalg.norm(x, dim=-1), torch.atan2(x[..., 1], x[..., 0])
 
-        rlim = (self.max_radius - self.min_radius) * torch.rand((2, batch_size)) + self.min_radius
-        rlim[:, rlim[0] > rlim[1]] = rlim[:, rlim[0] > rlim[1]].flip(0)
-        rlim = rlim[:, :, None]
+        # target_mask, rlim, philim = random_rphi_sample(r, phi, self.min_radius, self.max_radius)
+        target_mask, inner_target_flag = track_split_sample(r, self.min_radius, self.max_radius)
 
-        philim = 2 * torch.rand((2, batch_size)) * torch.pi - torch.pi
-        philim = philim[:, :, None]
-        phiorder = philim[0] < philim[1]
-
-        target_mask = (r < rlim[1]) & (r > rlim[0]) & (
-            (phiorder & (phi > philim[0]) & (phi < philim[1]))
-            | ((~phiorder) & (phi < philim[0]) & (phi > philim[1]))
-        )
         context_mask = ~target_mask & mask
-        target_mask = target_mask & target_mask
+        target_mask = target_mask & mask
 
-        return context_mask, target_mask, rlim.squeeze(-1), philim.squeeze(-1)
+        return context_mask, target_mask, inner_target_flag #, rlim.squeeze(-1), philim.squeeze(-1)
     
     @torch.no_grad
     def embed_target(self, x: torch.Tensor, mask: torch.Tensor, target_mask: torch.Tensor):
@@ -151,15 +139,42 @@ class JEPA(BaseModule):
     
     def training_step(self, batch, batch_idx):
         x, mask, *_ = batch
-        context_mask, target_mask, rlim, philim = self.sample_context(x, mask)
+        context_mask, target_mask, inner_target_flag = self.sample_context(x, mask)
         x = x.permute(1, 0, 2)
         target = self.embed_target(x, mask, target_mask)
         context = self.encoder(x, context_mask, context_mask)
-        prediction = self.predictor(context, rlim, philim)
+        prediction = self.predictor(context, inner_target_flag)
 
         loss = F.mse_loss(prediction, target)
 
+        self.log("train_loss", loss)
+
         return loss
+
+    def shared_evaluation(self, batch, batch_idx):
+        x, mask, *_ = batch
+        context_mask, target_mask, inner_target_flag = self.sample_context(x, mask)
+        x = x.permute(1, 0, 2)
+        target = self.embed_target(x, mask, target_mask)
+        context = self.encoder(x, context_mask, context_mask)
+        prediction = self.predictor(context, inner_target_flag)
+        
+        loss = F.mse_loss(prediction, target)
+        try:
+            lr = self.optimizers().param_groups[0]["lr"]
+        except:
+            lr = 0
+
+        self.log_dict({
+            "val_loss": loss,
+            "lr": lr
+        })
+
+        return {
+            "loss": loss,
+            "prediction": prediction,
+            "target": target
+        }
     
     def optimizer_step(self, *args, **kwargs):
         super().optimizer_step(*args, **kwargs)

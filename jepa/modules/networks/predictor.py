@@ -29,7 +29,7 @@ class GaussianSmearing(nn.Module):
         x = x.view(*shape, -1)
         return x
 
-class Predictor(nn.Module):
+class RPhiPredictor(nn.Module):
     def __init__(
         self,
         num_gaussians: int = 50,
@@ -72,3 +72,31 @@ class Predictor(nn.Module):
             self.angular_smearing(philim[0]),
             self.angular_smearing(philim[1])
         ], dim=-1))
+
+class SplitTrackPredictor(nn.Module):
+    """
+    A much simpler predictor, which takes the encoding and an innermost_flag boolean to make the prediction
+    """
+    def __init__(
+        self,
+        d_model: int = 512,
+        d_ff: int = 1024,
+        n_layer: int = 4,
+        dropout: float = 0.,
+    ):
+        super().__init__()
+
+        self.predictor = make_mlp(
+            d_input = d_model + 1,
+            d_hidden = d_ff,
+            d_output = d_model,
+            n_layer = n_layer,
+            dropout = dropout
+        )
+
+    def forward(
+            self,
+            x: torch.Tensor, # [B, D]
+            inner_target_flag: torch.Tensor, # [B]
+    ):
+        return self.predictor(torch.cat([x, inner_target_flag.float().unsqueeze(-1)], dim=-1))

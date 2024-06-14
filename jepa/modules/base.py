@@ -2,7 +2,7 @@
 from lightning.pytorch.core import LightningModule
 import torch
 from torch.utils.data import DataLoader
-from jepa.utils import TracksDataset, collate_fn
+from jepa.utils import TracksDatasetFixed, collate_fn_fixed
 from typing import Dict, Any, Optional
 from abc import ABC
 from abc import abstractmethod
@@ -24,9 +24,9 @@ class BaseModule(ABC, LightningModule):
     
     def _get_dataloader(self):        
         return DataLoader(
-            TracksDataset(**self.hparams["dataset_args"]),
+            TracksDatasetFixed(**self.hparams["dataset_args"]),
             batch_size=self.hparams["batch_size"],
-            collate_fn=collate_fn,
+            collate_fn=collate_fn_fixed,
             num_workers=self.hparams["workers"],
             persistent_workers=True
         )
@@ -79,7 +79,7 @@ class BaseModule(ABC, LightningModule):
         Could be some regression task or even just some visualization
         of how different events are seperated
         """
-        raise NotImplementedError("implement target encoder!")
+        raise NotImplementedError("implement evaluation!")
 
     def validation_step(self, batch, batch_idx):
         self.shared_evaluation(batch, batch_idx)
