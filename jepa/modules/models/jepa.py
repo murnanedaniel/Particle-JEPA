@@ -160,20 +160,23 @@ class JEPA(BaseModule):
         prediction = self.predictor(context, inner_target_flag)
         
         loss = F.mse_loss(prediction, target)
+        source_target_difference = F.mse_loss(prediction, context)
+
         try:
             lr = self.optimizers().param_groups[0]["lr"]
+            self.log_dict({
+                "val_loss": loss,
+                "source_target_difference": source_target_difference,
+                "lr": lr
+            })
         except:
-            lr = 0
-
-        self.log_dict({
-            "val_loss": loss,
-            "lr": lr
-        })
+            pass
 
         return {
             "loss": loss,
             "prediction": prediction,
-            "target": target
+            "target": target,
+            "context": context
         }
     
     def optimizer_step(self, *args, **kwargs):

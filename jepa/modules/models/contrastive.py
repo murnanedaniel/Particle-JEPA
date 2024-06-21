@@ -1,73 +1,66 @@
 import torch
 from torch import nn
+import torch.nn.functional as F
 from torch_geometric.nn import knn
 from typing import Optional, Dict, Any
-from jepa.modules.base import BaseModule
+from jepa.modules import JEPA
 from jepa.modules.networks.transformer import Transformer
 
-class ContrastiveLearningModule(BaseModule):
-    def __init__(
-            self, 
-            model: str,
-            d_model: int = 512,
-            d_ff: int = 1024,
-            heads: int = 8,
-            n_layers: int = 6,
-            n_pool_layer: int = 2,
-            dropout: float = 0,
-            batch_size: int = 128,
-            warmup: Optional[int] = 0,
-            lr: Optional[float] = 1e-3,
-            patience: Optional[int] = 10,
-            factor: Optional[float] = 1,
-            curriculum: Optional[str] = "1",
-            t0: Optional[int] = 0,
-            dataset_args: Optional[Dict[str, Any]] = {},
-            *args,
-            **kwargs,
-        ):
-        super().__init__(
-            batch_size=batch_size,
-            warmup=warmup,
-            lr=lr,
-            patience=patience,
-            factor=factor,
-            curriculum=curriculum,
-            t0=t0,
-            dataset_args=dataset_args
-        )
-        
-        self.encoder = Transformer(
-            d_model=d_model,
-            d_ff=d_ff,
-            heads=heads,
-            n_layers=n_layers,
-            n_pool_layer=n_pool_layer,
-            dropout=dropout
-        )
+class SemiContrastiveLearning(JEPA):
+    """
+    The only tweak required for this model in the case of single-particle events
+    that are partitioned into innermost and outermost tracklets is to set the Predictor
+    to be a passthrough function. Then the encoder is exactly trying to predict the outermost
+    tracklet encoding.
 
-        self.save_hyperparameters()
-        
-    def sample_context(self, x: torch.Tensor, mask: torch.Tensor):
-        center = torch.randint(0, x.shape[1], (1,))
-        length = torch.randint(1, x.shape[1] // 5, (1,))
-        context = knn(x, x[center], length)
-        context_mask = mask[context]
-        return context, context_mask
-     
-    def sample_target(self, x: torch.Tensor, mask: torch.Tensor, context_mask: torch.Tensor):
-        random_event = self.train_dataloader().dataset[torch.randint(0, len(self.train_dataloader().dataset), (1,))]
-        x = torch.cat([x, random_event[0]], dim=1)
-        mask = torch.cat([mask, random_event[1]], dim=1)
-        label = torch.cat([torch.ones(x.shape[1] - random_event[0].shape[1]), torch.zeros(random_event[0].shape[1])])
-        random_index = torch.randint(0, x.shape[1], (1,))
-        random_length = torch.randint(1, x.shape[1] // 5, (1,))
-        target = knn(x, x[random_index], random_length)
-        target_mask = mask[target]
-        return target, target_mask, label
+    This is not quite "strong" contrastive learning, since we are just matching
+    encodings, rather than looking at positive and negative distances.
+    """
     
-    def embed(self, x, mask):
-        raise NotImplementedError("implement embed mothod!")
-      
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        # Set the predictor to be a passthrough function
+        self.predictor = nn.Identity()
+
     def training_step(self, batch, batch_idx):
-        raise NotImplementedError("implement training mothod!")
+        x, mask, *_ = batch
+        context_mask, target_mask, inner_target_flag = self.sample_context(x, mask)
+        x = x.permute(1, 0, 2)
+        target = self.embed_target(x, mask, target_mask)
+        context = self.encoder(x, context_mask, context_mask)
+        prediction = self.predictor(context)
+
+        loss = F.mse_loss(prediction, target)
+
+        self.log("train_loss", loss)
+
+        return loss
+
+    def shared_evaluation(self, batch, batch_idx):
+        x, mask, *_ = batch
+        context_mask, target_mask, inner_target_flag = self.sample_context(x, mask)
+        x = x.permute(1, 0, 2)
+        target = self.embed_target(x, mask, target_mask)
+        context = self.encoder(x, context_mask, context_mask)
+        prediction = self.predictor(context)
+        
+        loss = F.mse_loss(prediction, target)
+        source_target_difference = F.mse_loss(prediction, context)
+
+        try:
+            lr = self.optimizers().param_groups[0]["lr"]
+            self.log_dict({
+                "val_loss": loss,
+                "source_target_difference": source_target_difference,
+                "lr": lr
+            })
+        except:
+            pass
+
+        return {
+            "loss": loss,
+            "prediction": prediction,
+            "target": target,
+            "context": context
+        }
