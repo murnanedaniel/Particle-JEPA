@@ -76,7 +76,7 @@ class TrueContrastiveLearning(BaseModule):
         dataloader = DataLoader(
             self.dataset,
             batch_size=self.hparams["batch_size"],
-            num_workers=self.hparams.get("num_workers", 16),
+            num_workers=self.hparams.get("num_workers", 32),
             collate_fn=self.dataset.collate_fn,
         )
         return dataloader
@@ -144,7 +144,7 @@ class TrueContrastiveLearning(BaseModule):
             dict: Dictionary containing loss, efficiency, purity, and mean distances.
         """
         x, mask, pids, edge_index, edge_mask, y = self._extract_batch_data(batch)
-        print(f"x: {x} \n mask: {mask} \n pids: {pids} \n edge_index: {edge_index} \n edge_mask: {edge_mask} \n y: {y}")
+        # print(f"x: {x} \n mask: {mask} \n pids: {pids} \n edge_index: {edge_index} \n edge_mask: {edge_mask} \n y: {y}")
 
         x_flat = self._flatten_tracklets(x)
         embedded_tracklets = self._embed_tracklets(x_flat)
@@ -152,7 +152,7 @@ class TrueContrastiveLearning(BaseModule):
             embedded_tracklets, edge_index, edge_mask, x.shape[1]
         )
         distances = self._compute_distances(embeddings_0, embeddings_1)
-        print(f"embedded_tracklets: {embedded_tracklets} \n distances: {distances}")
+        # print(f"embedded_tracklets: {embedded_tracklets} \n distances: {distances}")
         loss = self._compute_loss(distances, y, edge_mask)
         efficiency, purity = self._calculate_metrics(distances, y, edge_mask)
         
@@ -310,7 +310,7 @@ class TrueContrastiveLearning(BaseModule):
         assert truth_for_loss.shape == distances.shape, f"Mismatch between truth_for_loss and distances shapes: truth_for_loss={truth_for_loss.shape} != distances={distances.shape}"
         loss = F.hinge_embedding_loss(distances, truth_for_loss, margin=self.hparams.margin)
         
-        print(f"truth_for_loss: {truth_for_loss}")
+        # print(f"truth_for_loss: {truth_for_loss}")
         return loss
 
     def _log_learning_rate(self):
@@ -468,7 +468,7 @@ class TrueContrastiveLearning(BaseModule):
             mean_true_distance (torch.Tensor): Mean distance for true pairs.
             mean_fake_distance (torch.Tensor): Mean distance for fake pairs.
         """
-        print("First Event Metrics:")
+        print("First Batch Metrics:")
         print(f"  Efficiency: {efficiency:.4f}")
         print(f"  Purity: {purity:.4f}")
         print(f"  Mean True Distance: {mean_true_distance:.4f}")
