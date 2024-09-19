@@ -218,9 +218,10 @@ class _TrackIterableFixed:
             
         x = torch.tensor([event.hits.x, event.hits.y], dtype=torch.float).T.contiguous()
         mask = torch.ones(x.shape[0], dtype=bool)
+        pids = torch.tensor([event.hits.particle_id], dtype=torch.long).squeeze()
 
-        return x, mask, event
+        return x, mask, pids, event
 
 def collate_fn_fixed(ls):
-    x, mask, events = zip(*ls)
-    return pad_sequence(x, batch_first=True), pad_sequence(mask, batch_first=True), list(events)
+    x, mask, pids, events = zip(*ls)
+    return pad_sequence(x, batch_first=True), pad_sequence(mask, batch_first=True), pad_sequence(pids, batch_first=True), list(events)
