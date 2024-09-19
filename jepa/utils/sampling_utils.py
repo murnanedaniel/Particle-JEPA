@@ -30,13 +30,16 @@ def random_rphi_sample(r, phi, min_radius, max_radius):
 
     return target_mask, rlim, philim
 
-def track_split_sample(r, min_radius, max_radius):
+def track_split_sample(r, min_radius, max_radius, random=True):
     """
     For each event in batch, flip a coin to see whether source or target context is innermost.
     For each pid, take the innermost r/2 hits and assign them to the context.
     """
 
-    batch_randoms = torch.rand((r.shape[0], ), device=r.device)
+    if random:
+        batch_randoms = torch.rand((r.shape[0], ), device=r.device)
+    else:
+        batch_randoms = torch.ones((r.shape[0], ), device=r.device)
 
     mid_r_point = (min_radius + max_radius) / 2
     target_mask = r < mid_r_point
