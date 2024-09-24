@@ -2,15 +2,26 @@ import os
 import torch
 from pathlib import Path
 import wandb
+from torch import nn
 from lightning.pytorch.loggers import WandbLogger, CSVLogger
 from lightning.pytorch.trainer import Trainer
 from lightning.pytorch.callbacks import ModelCheckpoint
+import importlib
+from typing import Tuple, Dict, Any, Optional
+from datetime import datetime  # New import added
 
-# local imports
-from jepa.modules import JEPA
+def get_default_root_dir(logdir: str, resume: bool = False) -> str:
+    """
+    Determines the default root directory for logging and checkpoints.
+    Appends a date-time stamp to the logdir to ensure uniqueness for new runs.
 
+    Args:
+        logdir (str): Base directory for logs and checkpoints.
+        resume (bool): Whether to resume from the latest checkpoint.
 
-def get_default_root_dir(logdir):
+    Returns:
+        str: The determined root directory.
+    """
     if (
         "SLURM_JOB_ID" in os.environ
         and "SLURM_JOB_QOS" in os.environ
@@ -19,7 +30,14 @@ def get_default_root_dir(logdir):
     ):
         return os.path.join(logdir, os.environ["SLURM_JOB_ID"])
     else:
-        return logdir
+        if resume:
+            return logdir
+        else:
+            # Append current date-time to logdir for a unique run directory
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            unique_logdir = os.path.join(logdir, timestamp)
+            os.makedirs(unique_logdir, exist_ok=True)
+            return unique_logdir
 
 def find_latest_checkpoint(checkpoint_base, templates=None):
     if templates is None:
@@ -35,11 +53,10 @@ def find_latest_checkpoint(checkpoint_base, templates=None):
 
 
 def get_trainer(config, default_root_dir):
-    metric_to_monitor = "validation_auc"
-    metric_mode = config["metric_mode"] if "metric_mode" in config else "min"
+    metric_to_monitor = config.get("metric_to_monitor", "val_loss")
+    metric_mode = config.get("metric_mode", "min")
 
     print(f"Setting default root dir: {default_root_dir}")
-    resume = "allow"
 
     job_id = (
         os.environ["SLURM_JOB_ID"]
@@ -59,7 +76,7 @@ def get_trainer(config, default_root_dir):
             f" {find_latest_checkpoint(default_root_dir)}"
         )
 
-    print(f"Job ID: {job_id}, resume: {resume}")
+    print(f"Job ID: {job_id}")
 
     # handle wandb logging
     logger = (
@@ -69,7 +86,7 @@ def get_trainer(config, default_root_dir):
             id=job_id,
             name=job_id,
             group=config.get("group"),
-            resume=resume,
+            resume="allow",
         )
         if wandb is not None and config.get("log_wandb", True)
         else CSVLogger(save_dir=config["logdir"])
@@ -112,42 +129,72 @@ def get_trainer(config, default_root_dir):
     )
 
 def get_model(
-    config, checkpoint_path=None, checkpoint_resume_dir=None
-):
-    # get a default_root_dr
-    default_root_dir = get_default_root_dir(config["logdir"])
+    config: Dict[str, Any],
+    checkpoint_path: Optional[str] = None,
+    checkpoint_resume_dir: Optional[str] = None
+) -> Tuple[nn.Module, Dict[str, Any], str]:
+    """
+    Dynamically loads and returns a model based on the configuration.
 
-    # get the module
-    if config["model"] == "JEPA":
-        module = JEPA
-    else:
-        raise NotImplementedError("model specified is not implemented")
+    Args:
+        config (Dict[str, Any]): Configuration dictionary.
+        checkpoint_path (Optional[str], optional): Path to the checkpoint file. Defaults to None.
+        checkpoint_resume_dir (Optional[str], optional): Directory to resume checkpoint from. Defaults to None.
 
-    # if resume from a previous run that fails, allow to specify a checkpoint_resume_dir that must contain checkpoints from previous run
-    # if checkpoint_resume_dir exists and contains a checkpoint, set as default_root_dir
+    Returns:
+        Tuple[nn.Module, Dict[str, Any], str]: Instantiated model, updated configuration, and root directory.
+    """
+    # Determine if we are resuming
+    resume = checkpoint_path is not None or checkpoint_resume_dir is not None
+
+    # Get the default root directory
+    default_root_dir = get_default_root_dir(config.get("logdir"), resume=resume)
+
+    # Extract the full model path from config
+    model_full_path = config.get("model")
+    if not model_full_path:
+        raise ValueError("The 'model' key must be specified in the config with the full import path.")
+
+    try:
+        # Split the full path into module and class
+        module_path, class_name = model_full_path.rsplit(".", 1)
+    except ValueError:
+        raise ValueError("The 'model' key must be a full import path, e.g., 'jepa.modules.JEPA'.")
+
+    try:
+        # Dynamically import the module
+        model_module = importlib.import_module(module_path)
+    except ImportError as e:
+        raise ImportError(f"Could not import module '{module_path}': {e}")
+
+    try:
+        # Get the class from the module
+        model_class = getattr(model_module, class_name)
+    except AttributeError:
+        raise ImportError(f"Module '{module_path}' does not have a class named '{class_name}'.")
+
+    # Handle checkpoint resume directory
     if checkpoint_resume_dir is not None:
         if not os.path.exists(checkpoint_resume_dir):
-            raise Exception(
-                f"Checkpoint resume directory {checkpoint_resume_dir} does not exist."
-            )
-        if not find_latest_checkpoint(checkpoint_resume_dir, "*.ckpt"):
-            raise Exception(
-                "No checkpoint found in checkpoint resume directory"
-                f" {checkpoint_resume_dir}."
-            )
+            raise FileNotFoundError(f"Checkpoint resume directory '{checkpoint_resume_dir}' does not exist.")
+        latest_checkpoint = find_latest_checkpoint(checkpoint_resume_dir, "*.ckpt")
+        if not latest_checkpoint:
+            raise FileNotFoundError(f"No checkpoint found in resume directory '{checkpoint_resume_dir}'.")
         default_root_dir = checkpoint_resume_dir
+        checkpoint_path = latest_checkpoint
 
-    # if default_root_dir contains checkpoint, use latest checkpoint as starting point, ignore the input checkpoint_path
-    if default_root_dir is not None and find_latest_checkpoint(
-        default_root_dir, "*.ckpt"
-    ):
+    # Use the latest checkpoint in the default_root_dir if available and not explicitly specified
+    if not resume and default_root_dir and find_latest_checkpoint(default_root_dir, "*.ckpt"):
         checkpoint_path = find_latest_checkpoint(default_root_dir, "*.ckpt")
+        resume = True
 
-    # Load a checkpoint if checkpoint_path is not None
+    # Load the checkpoint if provided
     if checkpoint_path is not None:
-        model, config = load_module(checkpoint_path, module)
+        model, config = load_module(checkpoint_path, model_class)
     else:
-        model = module(**config)
+        # Instantiate the model with the remaining config parameters
+        model = model_class(**{k: v for k, v in config.items() if k != "model"})
+    
     return model, config, default_root_dir
 
 

@@ -179,6 +179,7 @@ class TrueContrastiveLearning(BaseModule):
             "purity": purity,
             "mean_true_distance": mean_true_distance,
             "mean_fake_distance": mean_fake_distance,
+            "embeddings": embedded_tracklets,
         }
 
     def _extract_batch_data(self, batch):

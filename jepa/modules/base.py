@@ -51,7 +51,7 @@ class BaseModule(ABC, LightningModule):
         # Define the main scheduler based on scheduler_type
         scheduler_dict = {
             "step": lambda: StepLR(optimizer, step_size=self.hparams["patience"], gamma=self.hparams["factor"]),
-            "cyclic": lambda: CyclicLR(optimizer, base_lr=self.hparams["lr"] / 10, max_lr=self.hparams["lr"],
+            "cyclic": lambda: CyclicLR(optimizer, base_lr=self.hparams["lr"] * self.hparams["factor"], max_lr=self.hparams["lr"],
                                        step_size_up=self.hparams["patience"], mode="triangular2", cycle_momentum=False)
         }
         
