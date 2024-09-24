@@ -1,0 +1,41 @@
+# logging config
+project: set_tracking
+logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/1_testing
+
+# trainer config
+accelerator: gpu
+devices: 1
+nodes: 1
+workers: 32
+train_batches: 100
+val_batches: 10
+max_epochs: 100
+batch_size: 1
+warmup: 1000
+lr: 0.0001
+patience: 100
+factor: 1
+t0: 50
+curriculum: np.clip(1.2 * t - 0.2, a_min=0.1, a_max=1)
+
+# Encoder config
+model: Transformer
+d_model: 8
+d_ff: 32
+heads: 1
+n_layers: 4
+n_pool_layer: 2
+dropout: 0.
+
+# Predictor config
+n_predictor_layers: 2
+
+# dataset config
+dataset_args:
+    hole_inefficiency: 0.
+    d0: 0.1
+    noise: 0.
+    num_particles: 1
+    pt_dist: [2.5, 2.6]
+    min_radius: 0.5
+    max_radius: 3.

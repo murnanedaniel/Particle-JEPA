@@ -131,7 +131,10 @@ dmypy.json
 # Logging files
 wandb/
 logs/
-notebooks/
+**checkpoints**
+**lightning_logs**
+**snn_clustering**
+# notebooks/
 */debug.ipynb
 # ipynb artifacts
 .ipynb_checkpoints
@@ -141,3 +144,5 @@ notebooks/
 *_dev
 **_test
 *_test
+
+*.ckpt

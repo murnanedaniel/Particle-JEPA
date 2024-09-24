@@ -1,0 +1,47 @@
+# logging config
+project: JEPA_toytrack_splittracks_contrastive_v2
+logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/2_testing
+model: jepa.modules.models.true_contrastive.TrueContrastiveLearning
+
+# trainer config
+accelerator: gpu
+devices: 1
+nodes: 1
+workers: 32
+train_batches: 100
+val_batches: 10
+max_epochs: 100
+batch_size: 2000
+warmup: 0 # In epochs
+lr: 0.01
+scheduler_type: step
+patience: 1
+factor: 0.95
+
+# Encoder config
+random_context: False
+d_model: 8
+d_ff: 128
+heads: 1
+n_layers: 4
+n_pool_layer: 2
+dropout: 0.
+
+# Predictor config
+n_predictor_layers: 2
+margin: 1.
+
+# dataset config
+dataset_args:
+    detector:
+        dimension: 2
+        hole_inefficiency: 0
+        layer_safety_guarantee: True
+        min_radius: 0.5
+        max_radius: 3.
+        number_of_layers: 8
+    particle_guns:
+        - num_particles: 10  # Variable number of particles
+          pt: [2.5, 2.6]
+          d0: 0.1
+    structure: trackwise
