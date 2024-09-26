@@ -78,10 +78,6 @@ class BaseModule(ABC, LightningModule):
 
         return [optimizer], [scheduler_config]
     
-    @abstractmethod
-    def embed(self, x, mask):
-        raise NotImplementedError("implement embed method!")
-    
     @abstractmethod   
     def training_step(self, batch, batch_idx):
         raise NotImplementedError("implement training method!")

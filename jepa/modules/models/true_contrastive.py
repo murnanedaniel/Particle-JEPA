@@ -297,7 +297,7 @@ class TrueContrastiveLearning(BaseModule):
 
     def _compute_loss(self, distances, y, edge_mask):
         """
-        Computes the hinge embedding loss.
+        Computes the squared moat embedding loss.
 
         Args:
             distances (torch.Tensor): Distances between embeddings.
@@ -307,11 +307,27 @@ class TrueContrastiveLearning(BaseModule):
         Returns:
             torch.Tensor: Computed loss.
         """
-        truth_for_loss = y[edge_mask].float() * 2 - 1  # Convert 1/0 to 1/-1 for hinge loss
-        assert truth_for_loss.shape == distances.shape, f"Mismatch between truth_for_loss and distances shapes: truth_for_loss={truth_for_loss.shape} != distances={distances.shape}"
-        loss = F.hinge_embedding_loss(distances, truth_for_loss, margin=self.hparams.margin)
+        assert y[edge_mask].shape == distances.shape, f"Mismatch between y[edge_mask] and distances shapes: y[edge_mask]={y[edge_mask].shape} != distances={distances.shape}"
         
-        # print(f"truth_for_loss: {truth_for_loss}")
+        negative_mask = y[edge_mask] == 0
+        positive_mask = y[edge_mask] == 1
+
+        negative_loss = torch.stack(
+            [
+                ((self.hparams["margin"] + self.hparams.get("moat_margin", self.hparams["margin"]/2)) - distances[negative_mask]),
+                torch.zeros_like(distances[negative_mask]),
+            ], dim=-1
+        ).max(dim=-1)[0].pow(2).sum()
+
+        positive_loss = torch.stack(
+            [
+                (distances[positive_mask] - (self.hparams["margin"] - self.hparams.get("moat_margin", self.hparams["margin"]/2))),
+                torch.zeros_like(distances[positive_mask]),
+            ], dim=-1
+        ).max(dim=-1)[0].pow(2).sum()
+        
+        loss = (negative_loss + positive_loss) / (negative_mask.sum().clamp(min=1) + positive_mask.sum().clamp(min=1))
+        
         return loss
 
     def _log_learning_rate(self):
@@ -336,7 +352,7 @@ class TrueContrastiveLearning(BaseModule):
         Returns:
             Tuple[torch.Tensor, torch.Tensor]: Efficiency and Purity.
         """
-        threshold = self.hparams.margin
+        threshold = self.hparams.get("radius", self.hparams.margin)
         truth = y[edge_mask]
         true_positives = (distances < threshold) & truth
         false_positives = (distances < threshold) & ~truth

@@ -6,11 +6,12 @@ from .network_utils import AttentionBlock, make_mlp
 class Aggregator(nn.Module):
     def __init__(
             self, 
-            d_model: int = 512,
-            d_ff: int = 1024,
-            heads: int = 8,
+            d_model: int = 32,
+            d_ff: int = 128,
+            heads: int = 4,
             n_layers: int = 2,
             dropout: float = 0,
+            d_embedding: int = 8,
         ):
         super().__init__()
 
@@ -29,9 +30,27 @@ class Aggregator(nn.Module):
         self.encoder_layers = nn.ModuleList(self.encoder_layers)
 
         self.embeddings = Parameter(torch.randn((1, 1, d_model)))
+        self.embeddings_encoder = make_mlp(
+            d_input=d_model, 
+            d_hidden=d_ff, 
+            d_output=d_embedding,
+            n_layer=2
+        )
         
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
-        z = self.embeddings.expand(-1, x.size(1), -1)
+        """
+        Aggregates the embedded tracklets.
+
+        Args:
+            x (torch.Tensor): Embedded tracklets with shape [H, N*P, C].
+            mask (torch.Tensor): Mask with shape [H, N*P].
+
+        Returns:
+            torch.Tensor: Aggregated embeddings with shape [N, P, C].
+        """
+        z = self.embeddings.expand(-1, x.size(1), -1)  # [1, N*P, C]
         for layer in self.encoder_layers:
             z = layer(z, src=x, src_padding_mask=~mask)
-        return z[0]
+        aggregated = z.squeeze(0)  # [N*P, C]
+        aggregated = self.embeddings_encoder(aggregated)
+        return aggregated 

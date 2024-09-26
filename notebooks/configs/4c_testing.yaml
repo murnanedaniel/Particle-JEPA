@@ -11,7 +11,7 @@ workers: 32
 train_batches: 100
 val_batches: 10
 max_epochs: 100
-batch_size: 2000
+batch_size: 200
 warmup: 0 # In epochs
 lr: 0.01
 scheduler_type: step
