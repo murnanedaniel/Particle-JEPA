@@ -1,5 +1,5 @@
 # logging config
-project: JEPA_toytrack_splittracks_contrastive_transformer
+project: JEA_toytrack_splittracks
 logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/2_testing
 model: jepa.modules.models.jea.JEA
 
