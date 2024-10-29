@@ -42,15 +42,15 @@ class Aggregator(nn.Module):
         Aggregates the embedded tracklets.
 
         Args:
-            x (torch.Tensor): Embedded tracklets with shape [H, N*P, C].
-            mask (torch.Tensor): Mask with shape [H, N*P].
+            x (torch.Tensor): Embedded tracklets with shape [S, B, C].
+            mask (torch.Tensor): Mask with shape [B, S].
 
         Returns:
-            torch.Tensor: Aggregated embeddings with shape [N, P, C].
+            torch.Tensor: Aggregated embeddings with shape [B, E].
         """
-        z = self.embeddings.expand(-1, x.size(1), -1)  # [1, N*P, C]
+        z = self.embeddings.expand(-1, x.size(1), -1)  # [1, B, C]
         for layer in self.encoder_layers:
             z = layer(z, src=x, src_padding_mask=~mask)
-        aggregated = z.squeeze(0)  # [N*P, C]
+        aggregated = z.squeeze(0)  # [B, E]
         aggregated = self.embeddings_encoder(aggregated)
         return aggregated 

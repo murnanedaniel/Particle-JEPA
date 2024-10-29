@@ -35,10 +35,9 @@ class Transformer(nn.Module):
         
     def forward(self, x: torch.Tensor, mask: torch.Tensor):
         """
-        A transformer model that takes in a tensor of shape [N*P, H, C] and returns a tensor of shape [N, P, H, C],
-        where N is the batch size, P is the number of particles, H is the number of hits, and C is the embedding dimension.
+        A transformer model that takes in a tensor of shape [S, B, C] and returns a tensor of shape [S, B, C],
+        where S is the sequence length, B is the batch size, and C is the embedding dimension.
         """
-        # Assume x is already reshaped to [N*P, H, C] and mask to [N*P, H]
         x = self.input_encoder(x)        
         for layer in self.encoder_layers:
             x = layer(x, padding_mask=~mask)

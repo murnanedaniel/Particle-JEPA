@@ -43,10 +43,10 @@ class Encoder(nn.Module):
         where S is sequence length, B is batch size, and C is the input dimension
 
         Returns:
-            torch.Tensor: Aggregated embeddings with shape [B, S, E]
+            torch.Tensor: Aggregated embeddings with shape [B, E]
 
         where E is the embedding dimension
         """
         embedded = self.transformer(x, mask)  # [S, B, D]
-        aggregated = self.aggregator(embedded, mask)  # [B, S, E]
+        aggregated = self.aggregator(embedded, mask)  # [B, E]
         return aggregated
