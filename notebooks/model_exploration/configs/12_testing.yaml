@@ -1,11 +1,7 @@
 # logging config
-project: JEPA_toytrack_classifyPt
-logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/13_testing
-model: jepa.modules.tasks.classifyPt.ClassifyPt
-
-# Transform config
-min_hits: 3
-pt_threshold: 5.0
+project: JEPA_toytrack_splitwedges
+logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/12_testing
+model: jepa.modules.models.jepa.JEPA
 
 # trainer config
 accelerator: gpu
@@ -16,8 +12,8 @@ train_batches: 100
 val_batches: 10
 max_epochs: 100
 batch_size: 200
-warmup: 3 # In epochs
-lr: 0.0001
+warmup: 0 # In epochs
+lr: 0.001
 scheduler_type: step
 patience: 10
 factor: 0.95
@@ -26,9 +22,9 @@ threshold: 0.01
 # Encoder config
 random_context: True
 d_input: 2
-d_model: 128
+d_model: 32
 d_ff: 128
-d_embedding: 128
+d_embedding: 8
 heads: 8
 n_layers: 16
 n_agg_layers: 2
@@ -48,7 +44,7 @@ dataset_args:
         - num_particles: 10  # Variable number of particles
           pt: [2.5, 2.6]
           d0: 0.1
-        - num_particles: 1
-          pt: [20, 30]
-          d0: 0.1
+        # - num_particles: 1
+        #   pt: [20, 30]
+        #   d0: 0.1
     structure: hitwise

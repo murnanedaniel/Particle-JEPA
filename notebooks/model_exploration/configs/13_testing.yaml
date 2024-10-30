@@ -7,10 +7,6 @@ model: jepa.modules.tasks.classifyPt.ClassifyPt
 min_hits: 3
 pt_threshold: 5.0
 
-# Pretrained config
-pretrained_path: /global/cfs/cdirs/m3443/usr/dtmurnane/Side_Work/Particle-JEPA/notebooks/JEPA_toytrack_splitwedges/21qrcatk/checkpoints/epoch=99-step=10000.ckpt
-freeze_backbone: False
-
 # trainer config
 accelerator: gpu
 devices: 1
@@ -19,9 +15,9 @@ workers: 32
 train_batches: 100
 val_batches: 10
 max_epochs: 100
-batch_size: 200
-warmup: 3 # In epochs
-lr: 0.0001
+batch_size: 2000
+warmup: 5 # In epochs
+lr: 0.0008
 scheduler_type: step
 patience: 10
 factor: 0.95
@@ -30,11 +26,11 @@ threshold: 0.01
 # Encoder config
 random_context: True
 d_input: 2
-d_model: 32
+d_model: 128
 d_ff: 128
-d_embedding: 8
-heads: 4
-n_layers: 3
+d_embedding: 128
+heads: 8
+n_layers: 16
 n_agg_layers: 2
 n_pool_layer: 2
 dropout: 0.

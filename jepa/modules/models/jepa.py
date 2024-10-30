@@ -104,7 +104,7 @@ class JEPA(BaseModule):
         )
         self.dataset = TracksDataset(
             self.dataset_args,
-            transform=patchify,
+            transforms=patchify,
         )
         dataloader = DataLoader(
             self.dataset,
@@ -152,7 +152,7 @@ class JEPA(BaseModule):
         if self.global_step == 0:
             self._debug_embeddings(embedded_target_tracklets, predicted_embedded_target_tracklets)
 
-        distances = self._compute_distances(embedded_context_tracklets, embedded_target_tracklets)
+        distances = self._compute_distances(predicted_embedded_target_tracklets, embedded_target_tracklets)
         loss = self._compute_loss(distances)
 
         if self.global_step == 0:
@@ -186,7 +186,7 @@ class JEPA(BaseModule):
         embedded_target_tracklets = self._embed_target_tracklets(x, target_mask, batch)
         predicted_embedded_target_tracklets = self.predictor(embedded_context_tracklets)
 
-        distances = self._compute_distances(embedded_context_tracklets, embedded_target_tracklets)
+        distances = self._compute_distances(predicted_embedded_target_tracklets, embedded_target_tracklets)
         loss = self._compute_loss(distances)
         
         # Calculate mean distances for true and fake pairs
