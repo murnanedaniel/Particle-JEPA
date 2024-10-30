@@ -10,17 +10,17 @@ nodes: 1
 workers: 32
 train_batches: 100
 val_batches: 10
-max_epochs: 100
+max_epochs: 1000
 batch_size: 200
 warmup: 0 # In epochs
 encoder_lr: 0.001
 predictor_lr: 0.001
 scheduler_type: step
-patience: 10
+patience: 100
 factor: 0.95
 threshold: 0.01
 
-ema_decay: 0.999
+ema_decay: 0.9995
 
 # Encoder configs
 random_context: False

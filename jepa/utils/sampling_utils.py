@@ -9,9 +9,10 @@ class WedgePatchify:
     Give an event of shape [num_hits, 2] (x, y), return two mask tensors (context, target) of shape [num_hits]
     """
 
-    def __init__(self, phi_range: float, radius_midpoint: float):
+    def __init__(self, phi_range: float, radius_midpoint: float, random_context: bool = True):
         self.phi_range = phi_range
         self.radius_midpoint = radius_midpoint
+        self.random_context = random_context
 
     def __call__(self, sample: Dict) -> Dict:
         """
@@ -65,7 +66,7 @@ class WedgePatchify:
         return inner_mask, outer_mask
 
     def _assign_masks(self, inner_mask: torch.Tensor, outer_mask: torch.Tensor, phi_mask: torch.Tensor) -> (torch.Tensor, torch.Tensor):
-        if torch.rand(1).item() > 0.5:
+        if self.random_context and torch.rand(1).item() > 0.5:
             context_mask = inner_mask & phi_mask
             target_mask = outer_mask & phi_mask
         else:

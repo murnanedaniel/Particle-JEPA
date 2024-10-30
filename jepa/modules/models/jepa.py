@@ -5,6 +5,9 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 from torch.utils.data import DataLoader
+from itertools import chain
+from torch.optim.lr_scheduler import LambdaLR, StepLR, CyclicLR, SequentialLR
+
 
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
@@ -33,10 +36,12 @@ class JEPA(BaseModule):
         d_embedding: int = 8,
         n_layers: int = 4,
         n_agg_layers: int = 2,
+        n_predictor_layers: int = 6,
         heads: int = 4,
         batch_size: int = 128,
         warmup: Optional[int] = 0,
-        lr: Optional[float] = 1e-3,
+        encoder_lr: Optional[float] = 1e-3,
+        predictor_lr: Optional[float] = 1e-3,
         patience: Optional[int] = 10,
         factor: Optional[float] = 1,
         margin: Optional[float] = 1,
@@ -49,7 +54,6 @@ class JEPA(BaseModule):
         super().__init__(
             batch_size=batch_size,
             warmup=warmup,
-            lr=lr,
             patience=patience,
             factor=factor,
             dataset_args=dataset_args,
@@ -64,6 +68,7 @@ class JEPA(BaseModule):
             heads=heads,
             n_agg_layers=n_agg_layers,
         )
+
         self.ema_encoder = Encoder(
             d_input=d_input,
             d_model=d_model,
@@ -78,7 +83,7 @@ class JEPA(BaseModule):
             d_input=d_embedding,
             d_hidden=d_ff,
             d_output=d_embedding,
-            n_layer=3
+            n_layer=n_predictor_layers
         )
 
         self.ema_decay = ema_decay
@@ -100,7 +105,8 @@ class JEPA(BaseModule):
         """
         patchify = WedgePatchify(
             phi_range=np.pi / 4, 
-            radius_midpoint = (self.dataset_args["detector"]["max_radius"] + self.dataset_args["detector"]["min_radius"]) / 2
+            radius_midpoint = (self.dataset_args["detector"]["max_radius"] + self.dataset_args["detector"]["min_radius"]) / 2,
+            random_context=self.hparams["random_context"],
         )
         self.dataset = TracksDataset(
             self.dataset_args,
@@ -200,7 +206,7 @@ class JEPA(BaseModule):
 
         if batch_idx == 0:
             self._plot_evaluation(
-                x, context_mask, target_mask, distances, embedded_context_tracklets, embedded_target_tracklets
+                x, context_mask, target_mask, distances, predicted_embedded_target_tracklets, embedded_target_tracklets
             )
             self._print_metrics(mean_true_distance, mean_fake_distance)
 
@@ -277,7 +283,7 @@ class JEPA(BaseModule):
         """
         print(f"Batch shapes: x={x.shape}, mask={mask.shape}, context_mask={context_mask.shape}, target_mask={target_mask.shape}, pids={pids.shape}")
     
-    @torch.no_grad
+    @torch.no_grad()
     def _embed_target_tracklets(self, x, mask, batch):
         """
         Embeds the tracklets by reshaping and passing through the embedding and aggregator networks.
@@ -333,7 +339,7 @@ class JEPA(BaseModule):
 
     def _compute_loss(self, distances):
         """
-        Computes the L1 loss (Mean Absolute Error)
+        Computes the Smooth L1 loss (Huber loss)
 
         Args:
             distances (torch.Tensor): Distances between embeddings.
@@ -342,7 +348,7 @@ class JEPA(BaseModule):
             torch.Tensor: Computed loss.
         """
 
-        loss = distances.abs().mean()
+        loss = F.smooth_l1_loss(distances, torch.zeros_like(distances))
 
         return loss
     
@@ -350,11 +356,48 @@ class JEPA(BaseModule):
         super().optimizer_step(*args, **kwargs)
         self.update_ema_params()
 
-    @torch.no_grad
+    @torch.no_grad()
     def update_ema_params(self):
         for ema_param, param in zip(self.ema_encoder.parameters(), self.encoder.parameters()):
             ema_param.data.copy_(ema_param.data * self.ema_decay + (1 - self.ema_decay) * param.data)
         
+    def configure_optimizers(self):
+        # Create parameter groups with different learning rates
+        encoder_params = self.encoder.parameters()
+        predictor_params = self.predictor.parameters()
+        
+        optimizer = torch.optim.AdamW([
+            {'params': encoder_params, 'lr': self.hparams["encoder_lr"]},
+            {'params': predictor_params, 'lr': self.hparams["predictor_lr"]}
+        ], betas=(0.9, 0.999), eps=1e-08, amsgrad=True)
+
+        scheduler_type = self.hparams.get("scheduler_type", "step")
+        warmup_epochs = self.hparams.get("warmup", 0)
+
+        # Define the main scheduler based on scheduler_type
+        scheduler_dict = {
+            "step": lambda: StepLR(optimizer, step_size=self.hparams["patience"], gamma=self.hparams["factor"]),
+            "cyclic": lambda: CyclicLR(
+                optimizer, 
+                base_lr=[self.hparams["encoder_lr"] * self.hparams["factor"], 
+                        self.hparams["predictor_lr"] * self.hparams["factor"]],
+                max_lr=[self.hparams["encoder_lr"], 
+                       self.hparams["predictor_lr"]],
+                step_size_up=self.hparams["patience"], 
+                mode="triangular2", 
+                cycle_momentum=False
+            )
+        }
+
+        scheduler = scheduler_dict[scheduler_type]()
+
+        return {
+            "optimizer": optimizer,
+            "lr_scheduler": {
+                "scheduler": scheduler,
+                "monitor": "train_loss",
+            },
+        }
 
     # ------------------- DEBUGGING + VISUALISATION ------------------- #
 
@@ -439,7 +482,7 @@ class JEPA(BaseModule):
         return mean_true_distance, mean_fake_distance
 
     def _plot_evaluation(
-        self, x, context_mask, target_mask, distances, embedded_context_tracklets, embedded_target_tracklets
+        self, x, context_mask, target_mask, distances, predicted_embedded_target_tracklets, embedded_target_tracklets
     ):
         """
         Generates and displays plots for evaluation.
@@ -449,7 +492,7 @@ class JEPA(BaseModule):
             context_mask (torch.Tensor): Context mask.
             target_mask (torch.Tensor): Target mask.
             distances (torch.Tensor): Distances between embeddings.
-            embedded_context_tracklets (torch.Tensor): Embedded context tracklets.
+            predicted_embedded_target_tracklets (torch.Tensor): Predicted embedded target tracklets.
             embedded_target_tracklets (torch.Tensor): Embedded target tracklets.
         """
         # Move to CPU and select first event
@@ -457,23 +500,23 @@ class JEPA(BaseModule):
         context_mask_cpu = context_mask[0].cpu()
         target_mask_cpu = target_mask[0].cpu()
         distances_cpu = distances.cpu()
-        embedded_context_tracklets_cpu = embedded_context_tracklets.detach().cpu()
+        predicted_embedded_target_tracklets_cpu = predicted_embedded_target_tracklets.detach().cpu()
         embedded_target_tracklets_cpu = embedded_target_tracklets.detach().cpu()
 
         # Plot original tracklets
         self._plot_original_tracklets(x_cpu, context_mask_cpu, target_mask_cpu)
 
         # Combine context and target tracklets
-        combined_tracklets = torch.cat([embedded_context_tracklets_cpu, embedded_target_tracklets_cpu], dim=0)
+        combined_tracklets = torch.cat([predicted_embedded_target_tracklets_cpu, embedded_target_tracklets_cpu], dim=0)
 
         # Plot embedded tracklets with PCA
         pca = PCA(n_components=2)
         combined_tracklets_2d = pca.fit_transform(combined_tracklets.numpy())
-        embedded_context_tracklets_2d = combined_tracklets_2d[:len(embedded_context_tracklets_cpu)]
-        embedded_target_tracklets_2d = combined_tracklets_2d[len(embedded_context_tracklets_cpu):]
+        predicted_embedded_target_tracklets_2d = combined_tracklets_2d[:len(predicted_embedded_target_tracklets_cpu)]
+        embedded_target_tracklets_2d = combined_tracklets_2d[len(predicted_embedded_target_tracklets_cpu):]
 
         self._plot_embedded_tracklets(
-            embedded_context_tracklets_2d, embedded_target_tracklets_2d, distances_cpu
+            predicted_embedded_target_tracklets_2d, embedded_target_tracklets_2d, distances_cpu
         )
 
     def _plot_original_tracklets(self, x_cpu, context_mask_cpu, target_mask_cpu):
@@ -503,13 +546,13 @@ class JEPA(BaseModule):
         plt.show()
 
     def _plot_embedded_tracklets(
-        self, embedded_context_tracklets_2d, embedded_target_tracklets_2d, distances_cpu
+        self, predicted_embedded_target_tracklets_2d, embedded_target_tracklets_2d, distances_cpu
     ):
         """
         Plots the embedded tracklets using 2D PCA along with evaluation edges and distances.
 
         Args:
-            embedded_context_tracklets_2d (ndarray): 2D PCA transformed context tracklets.
+            predicted_embedded_target_tracklets_2d (ndarray): 2D PCA transformed predicted target tracklets.
             embedded_target_tracklets_2d (ndarray): 2D PCA transformed target tracklets.
             distances_cpu (torch.Tensor): Distances between embeddings.
         """
@@ -521,7 +564,7 @@ class JEPA(BaseModule):
         colors = cmap(np.linspace(0, 1, num_colors))
 
         # Plot context tracklets as circles
-        ax.scatter(embedded_context_tracklets_2d[:, 0], embedded_context_tracklets_2d[:, 1], 
+        ax.scatter(predicted_embedded_target_tracklets_2d[:, 0], predicted_embedded_target_tracklets_2d[:, 1], 
                    label='Context Tracklets', color=colors, marker='o')
         
         # Plot target tracklets as stars
@@ -529,7 +572,7 @@ class JEPA(BaseModule):
                    label='Target Tracklets', color=colors, marker='*')  # Increased size for better visibility
 
         # Move legend outside the plot
-        ax.set_title('Embedded Tracklets Context and Target (2D PCA)')
+        ax.set_title('Embedded Tracklets Predicted Target and Target (2D PCA)')
         plt.tight_layout()  # Adjust the layout to prevent clipping of the legend
         plt.show()
 
