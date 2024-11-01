@@ -146,6 +146,7 @@ logs/
 *_test
 
 *.ckpt
+data/
 
 # Images
 *.png
@@ -157,3 +158,6 @@ logs/
 *.webp
 *.svg
 *.ico
+
+# macOS
+*.DS_Store
