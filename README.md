@@ -19,5 +19,4 @@ conda create -n jepa python=3.10
 conda activate jepa
 pip install -r requirements.txt
 pip install -e .
-pip install -e ToyTrack
 ```
