@@ -1,0 +1,52 @@
+# logging config
+project: JEPA_toytrack_splitwedges
+logdir: /global/cfs/cdirs/m3443/data/UnsupervisedLearning/JEPA/ToyTrack/12_testing
+model: jepa.modules.models.jea.JEA
+
+# trainer config
+accelerator: gpu
+devices: 1
+nodes: 1
+workers: 32
+train_batches: 100
+val_batches: 10
+max_epochs: 100
+batch_size: 200
+warmup: 5 # In epochs
+encoder_lr: 0.001
+scheduler_type: step
+patience: 1
+factor: 0.95
+threshold: 0.01
+
+ema_decay: 0.999
+
+# Encoder configs
+random_context: False
+d_input: 2
+d_model: 32
+d_ff: 128
+d_embedding: 16
+heads: 4
+n_layers: 3
+n_agg_layers: 2
+n_pool_layer: 2
+dropout: 0.
+
+# dataset config
+dataset_args:
+    detector:
+        dimension: 2
+        hole_inefficiency: 0
+        layer_safety_guarantee: True
+        min_radius: 0.5
+        max_radius: 3.
+        number_of_layers: 8
+    particle_guns:
+        - num_particles: 10  # Variable number of particles
+          pt: [2.5, 2.6]
+          d0: 0.1
+        # - num_particles: 1
+        #   pt: [20, 30]
+        #   d0: 0.1
+    structure: hitwise
