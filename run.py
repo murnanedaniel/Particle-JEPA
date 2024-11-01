@@ -24,6 +24,11 @@ def main(cfg, checkpoint_path, checkpoint_resume_dir):
     )
     
     trainer = get_trainer(config, default_root_dir)
+    
+    # Add model watching if using WandB logger
+    if isinstance(trainer.logger, WandbLogger):
+        trainer.logger.watch(model)
+    
     torch.set_float32_matmul_precision('medium')
     trainer.fit(model)
 

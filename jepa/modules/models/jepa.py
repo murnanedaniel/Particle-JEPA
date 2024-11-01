@@ -48,6 +48,7 @@ class JEPA(BaseModule):
         random_context: Optional[bool] = True,
         dataset_args: Optional[Dict[str, Any]] = {},
         ema_decay: Optional[float] = 0.99,
+        use_target_location: Optional[bool] = True,
         *args,
         **kwargs,
     ):
@@ -79,8 +80,9 @@ class JEPA(BaseModule):
             n_agg_layers=n_agg_layers,
         )
 
+        predictor_input_dim = d_embedding + 1 if use_target_location else d_embedding
         self.predictor = make_mlp(
-            d_input=d_embedding,
+            d_input=predictor_input_dim,
             d_hidden=d_ff,
             d_output=d_embedding,
             n_layer=n_predictor_layers
@@ -135,15 +137,23 @@ class JEPA(BaseModule):
             print("Starting first training step...")
 
         # Get inputs
-        x, mask, context_mask, target_mask, pids = self._extract_batch_data(batch)
+        x, mask, context_mask, target_mask, inner_target, pids = self._extract_batch_data(batch)
 
         if self.global_step == 0:
             self._debug_batch_shapes(x, mask, context_mask, target_mask, pids)
 
         # Embed context (updated) and target (fixed) tracklets
-        embedded_context_tracklets = self._embed_context_tracklets(x, context_mask, batch)
-        embedded_target_tracklets = self._embed_target_tracklets(x, target_mask, batch)
-        predicted_embedded_target_tracklets = self.predictor(embedded_context_tracklets)
+        embedded_context_tracklets = self._embed_context_tracklets(x, context_mask, batch)  # [B, D]
+        embedded_target_tracklets = self._embed_target_tracklets(x, target_mask, batch)  # [B, D]
+
+        # Add target location information if enabled
+        if self.hparams.get("use_target_location", True):
+            inner_target = inner_target.float()  # [B, 1]
+            predictor_input = torch.cat([embedded_context_tracklets, inner_target], dim=-1)  # [B, D+1]
+        else:
+            predictor_input = embedded_context_tracklets
+
+        predicted_embedded_target_tracklets = self.predictor(predictor_input)  # [B, D]
 
         # Add NaN checks
         self._check_nan(embedded_context_tracklets, "embedded_context_tracklets", batch)
@@ -183,14 +193,22 @@ class JEPA(BaseModule):
         Returns:
             dict: Dictionary containing loss, efficiency, purity, and mean distances.
         """
-        x, mask, context_mask, target_mask, pids = self._extract_batch_data(batch)
+        x, mask, context_mask, target_mask, inner_target, pids = self._extract_batch_data(batch)
 
         if self.global_step == 0:
             self._debug_batch_shapes(x, mask, context_mask, target_mask, pids)
 
         embedded_context_tracklets = self._embed_context_tracklets(x, context_mask, batch)
         embedded_target_tracklets = self._embed_target_tracklets(x, target_mask, batch)
-        predicted_embedded_target_tracklets = self.predictor(embedded_context_tracklets)
+        
+        # Add target location information if enabled
+        if self.hparams.get("use_target_location", True):
+            inner_target = inner_target.float()  # [B, 1]
+            predictor_input = torch.cat([embedded_context_tracklets, inner_target], dim=-1)  # [B, D+1]
+        else:
+            predictor_input = embedded_context_tracklets
+
+        predicted_embedded_target_tracklets = self.predictor(predictor_input)
 
         distances = self._compute_distances(predicted_embedded_target_tracklets, embedded_target_tracklets)
         loss = self._compute_loss(distances)
@@ -250,11 +268,12 @@ class JEPA(BaseModule):
         Returns:
             Tuple containing x, mask, context_mask, target_mask and pids
         """
-        x, mask, context_mask, target_mask, pids = (
+        x, mask, context_mask, target_mask, inner_target, pids = (
             batch["x"],
             batch["mask"],
             batch["context_mask"],
             batch["target_mask"],
+            batch["inner_target"],
             batch["pids"],
         )
 
@@ -265,10 +284,11 @@ class JEPA(BaseModule):
             x = x[valid_rows]
             context_mask = context_mask[valid_rows]
             target_mask = target_mask[valid_rows]
+            inner_target = inner_target[valid_rows]
             mask = mask[valid_rows]
             pids = pids[valid_rows]
 
-        return x, mask, context_mask, target_mask, pids
+        return x, mask, context_mask, target_mask, inner_target, pids
 
     def _debug_batch_shapes(self, x, mask, context_mask, target_mask, pids):
         """
@@ -372,7 +392,15 @@ class JEPA(BaseModule):
         ], betas=(0.9, 0.999), eps=1e-08, amsgrad=True)
 
         scheduler_type = self.hparams.get("scheduler_type", "step")
-        warmup_epochs = self.hparams.get("warmup", 0)
+
+        # Define warmup scheduler if warmup steps > 0
+        schedulers = []
+        if self.hparams["warmup"] > 0:
+            warmup_scheduler = LambdaLR(
+                optimizer,
+                lr_lambda=lambda step: min(1.0, step / self.hparams["warmup"])
+            )
+            schedulers.append(warmup_scheduler)
 
         # Define the main scheduler based on scheduler_type
         scheduler_dict = {
@@ -389,7 +417,18 @@ class JEPA(BaseModule):
             )
         }
 
-        scheduler = scheduler_dict[scheduler_type]()
+        main_scheduler = scheduler_dict[scheduler_type]()
+        schedulers.append(main_scheduler)
+
+        # If we have warmup, use SequentialLR to combine schedulers
+        if len(schedulers) > 1:
+            scheduler = SequentialLR(
+                optimizer,
+                schedulers=schedulers,
+                milestones=[self.hparams["warmup"]]
+            )
+        else:
+            scheduler = schedulers[0]
 
         return {
             "optimizer": optimizer,

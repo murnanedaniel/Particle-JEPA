@@ -15,18 +15,18 @@ batch_size: 200
 warmup: 5 # In epochs
 encoder_lr: 0.001
 scheduler_type: step
-patience: 1
+patience: 10
 factor: 0.95
 threshold: 0.01
 
 ema_decay: 0.999
 
 # Encoder configs
-random_context: False
+random_context: True
 d_input: 2
 d_model: 32
 d_ff: 128
-d_embedding: 16
+d_embedding: 32
 heads: 4
 n_layers: 3
 n_agg_layers: 2

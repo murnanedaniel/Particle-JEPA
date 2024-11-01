@@ -23,7 +23,8 @@ threshold: 0.01
 ema_decay: 0.999
 
 # Encoder configs
-random_context: False
+random_context: True
+use_target_location: True
 d_input: 2
 d_model: 32
 d_ff: 128
@@ -32,7 +33,7 @@ heads: 4
 n_layers: 3
 n_agg_layers: 2
 n_pool_layer: 2
-n_predictor_layers: 6
+n_predictor_layers: 1
 dropout: 0.
 
 # dataset config

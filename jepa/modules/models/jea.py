@@ -360,6 +360,15 @@ class JEA(BaseModule):
 
         scheduler_type = self.hparams.get("scheduler_type", "step")
 
+        # Define warmup scheduler if warmup steps > 0
+        schedulers = []
+        if self.hparams["warmup"] > 0:
+            warmup_scheduler = LambdaLR(
+                optimizer,
+                lr_lambda=lambda step: min(1.0, step / self.hparams["warmup"])
+            )
+            schedulers.append(warmup_scheduler)
+
         # Define the main scheduler based on scheduler_type
         scheduler_dict = {
             "step": lambda: StepLR(optimizer, step_size=self.hparams["patience"], gamma=self.hparams["factor"]),
@@ -373,7 +382,18 @@ class JEA(BaseModule):
             )
         }
 
-        scheduler = scheduler_dict[scheduler_type]()
+        main_scheduler = scheduler_dict[scheduler_type]()
+        schedulers.append(main_scheduler)
+
+        # If we have warmup, use SequentialLR to combine schedulers
+        if len(schedulers) > 1:
+            scheduler = SequentialLR(
+                optimizer,
+                schedulers=schedulers,
+                milestones=[self.hparams["warmup"]]
+            )
+        else:
+            scheduler = schedulers[0]
 
         return {
             "optimizer": optimizer,

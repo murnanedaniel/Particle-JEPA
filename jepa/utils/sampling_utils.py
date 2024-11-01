@@ -30,10 +30,11 @@ class WedgePatchify:
         selected_phi = self._select_random_phi(phi)
         phi_mask = self._create_phi_mask(phi, selected_phi)
         inner_mask, outer_mask = self._create_radius_masks(radius)
-        context_mask, target_mask = self._assign_masks(inner_mask, outer_mask, phi_mask)
+        context_mask, target_mask, inner_target = self._assign_masks(inner_mask, outer_mask, phi_mask)
 
         sample["context_mask"] = context_mask
         sample["target_mask"] = target_mask
+        sample["inner_target"] = torch.tensor([inner_target], dtype=torch.float)
         sample["pt"] = self._get_pt(sample)
 
         return sample
@@ -65,14 +66,17 @@ class WedgePatchify:
         outer_mask = radius > self.radius_midpoint
         return inner_mask, outer_mask
 
-    def _assign_masks(self, inner_mask: torch.Tensor, outer_mask: torch.Tensor, phi_mask: torch.Tensor) -> (torch.Tensor, torch.Tensor):
-        if self.random_context and torch.rand(1).item() > 0.5:
-            context_mask = inner_mask & phi_mask
-            target_mask = outer_mask & phi_mask
-        else:
+    def _assign_masks(self, inner_mask: torch.Tensor, outer_mask: torch.Tensor, phi_mask: torch.Tensor) -> (torch.Tensor, torch.Tensor, bool):
+        inner_target = torch.rand(1).item() > 0.5 if self.random_context else False
+        
+        if inner_target:
             context_mask = outer_mask & phi_mask
             target_mask = inner_mask & phi_mask
-        return context_mask, target_mask
+        else:
+            context_mask = inner_mask & phi_mask
+            target_mask = outer_mask & phi_mask
+            
+        return context_mask, target_mask, inner_target
 
     def _get_pt(self, sample: Dict) -> torch.Tensor:
         """
