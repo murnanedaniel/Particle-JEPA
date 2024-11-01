@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from torch_geometric.nn import knn
+# from torch_geometric.nn import knn
 
 from jepa.modules.models.true_contrastive import TrueContrastiveLearning
 from jepa.modules.networks.transformer import Transformer

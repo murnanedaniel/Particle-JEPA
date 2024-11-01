@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 import torch.nn.functional as F
-from torch_geometric.nn import knn
+# from torch_geometric.nn import knn
 from typing import Optional, Dict, Any
 from jepa.modules import JEPA
 from jepa.modules.networks.transformer import Transformer

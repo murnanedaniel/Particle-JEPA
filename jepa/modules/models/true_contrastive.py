@@ -7,7 +7,7 @@ from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
-from torch_geometric.nn import knn
+# from torch_geometric.nn import knn
 
 from jepa.modules.base import BaseModule
 from jepa.modules.networks.mlp import MLP
